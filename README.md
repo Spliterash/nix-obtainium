@@ -35,36 +35,134 @@ inputs.photocraft = {
 алфавиту). Это внутреннее устройство Nix, а не публичный API, поэтому после обновления Nix стоит прогнать
 `tests/run.sh`.
 
-## Подключение (NixOS)
+## Пример: photocraft в NixOS
+
+Ставим [photocraft](https://github.com/storytold/photocraft) из `.deb` последнего релиза на GitHub.
+
+`flake.nix`:
 
 ```nix
-# flake.nix
-inputs.nix-obtainium = {
-  url = "github:Spliterash/nix-obtainium";
-  inputs.nixpkgs.follows = "nixpkgs";
-};
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nix-obtainium = {
+      url = "github:Spliterash/nix-obtainium";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-# конфигурация системы
-imports = [ inputs.nix-obtainium.nixosModules.default ];
-nix.obtainium = {
-  enable = true;  # плагин для nix flake update
-  flake = self;   # obtainium-входы флейка -> pkgs.obtainium.<вход>
-};
+    # Последний релиз; версия фиксируется в flake.lock, обновляется через nix flake update
+    photocraft = {
+      url = "file+https://nix-obtainium.invalid/github/storytold/photocraft?asset=photocraft-*-linux-x86_64.deb";
+      flake = false;
+    };
+  };
+
+  outputs =
+    { self, nixpkgs, nix-obtainium, ... }:
+    {
+      nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix
+          nix-obtainium.nixosModules.default
+          (
+            { pkgs, ... }:
+            {
+              nix.obtainium = {
+                enable = true; # плагин для nix flake update
+                flake = self;  # obtainium-входы этого флейка -> pkgs.obtainium.<вход>
+              };
+              environment.systemPackages = [ (pkgs.callPackage ./photocraft.nix { }) ];
+            }
+          )
+        ];
+      };
+    };
+}
 ```
 
-Модуль собирает плагин против `config.nix.package` (у плагина нет стабильного ABI, версии обязаны совпадать)
-и прописывает его в `nix.settings.plugin-files`. Поддерживается только CppNix из nixpkgs: у Lix и Determinate
-Nix свои внутренности.
+`photocraft.nix` — обычный пакет, только `src` и `version` берёт из `obtainium`:
 
-### Первый запуск
+```nix
+{
+  stdenv,
+  obtainium,
+  dpkg,
+  autoPatchelfHook,
+  libx11,
+  libxcb,
+  libxcursor,
+  libxi,
+  libxkbcommon,
+  vulkan-loader,
+  wayland,
+}:
 
-Пока система не пересобрана с модулем, плагина нет. Для обновления lock используй Nix из этого флейка:
+stdenv.mkDerivation {
+  pname = "photocraft";
+  inherit (obtainium.photocraft) src version;
+
+  nativeBuildInputs = [
+    dpkg
+    autoPatchelfHook
+  ];
+  buildInputs = [ stdenv.cc.cc.lib ];
+
+  # winit/wgpu грузят их через dlopen, autoPatchelf их в NEEDED не видит
+  runtimeDependencies = [
+    libx11
+    libxcb
+    libxcursor
+    libxi
+    libxkbcommon
+    vulkan-loader
+    wayland
+  ];
+
+  # Вход лежит в store как "source" без расширения .deb, хук dpkg его не узнаёт
+  unpackCmd = "dpkg -x $curSrc root";
+  sourceRoot = "root";
+
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out
+    cp -r usr/bin usr/share $out/
+    runHook postInstall
+  '';
+}
+```
+
+`pkgs.obtainium.photocraft` выглядит так:
+
+```nix
+{
+  src = <файл .deb в store>;
+  version = "0.22.0";
+  fileName = "photocraft-0.22.0-linux-x86_64.deb";
+  url = "https://github.com/storytold/photocraft/releases/download/v0.22.0/photocraft-0.22.0-linux-x86_64.deb";
+}
+```
+
+Первый раз (плагина в системе ещё нет) — lock через Nix из этого флейка, дальше как обычно:
 
 ```sh
-nix shell github:Spliterash/nix-obtainium#nix -c nix flake update
+nix shell github:Spliterash/nix-obtainium#nix -c nix flake lock
+sudo nixos-rebuild switch --flake .#myhost
+
+# потом, уже с плагином в системе:
+nix flake update && sudo nixos-rebuild switch --flake .#myhost
 ```
 
-Или обнови всё, кроме входов nix-obtainium, обычным Nix:
+Новое приложение — это вход во `flake.nix` и пакет с `inherit (obtainium.<вход>) src version;`.
+
+### Что делает модуль
+
+- Собирает плагин против `config.nix.package` (у плагина нет стабильного ABI, версии обязаны совпадать)
+  и прописывает его в `nix.settings.plugin-files`. Поддерживается только CppNix из nixpkgs: у Lix и
+  Determinate Nix свои внутренности.
+- С `flake = self` добавляет overlay с `pkgs.obtainium`: все входы флейка с `nix-obtainium.invalid`.
+
+Без плагина обновить всё, кроме входов nix-obtainium, можно обычным Nix:
 
 ```sh
 nix flake update $(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
@@ -72,41 +170,23 @@ nix flake update $(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
   | select($n[.value].original.url // "" | contains("nix-obtainium.invalid") | not) | .key' flake.lock)
 ```
 
-## Использование в пакете
+### Без NixOS
 
-Вход даёт **только файл** (`outPath` — сам `.deb`/бинарник/архив), что с ним делать — решает пакет.
-С `nix.obtainium.flake = self` все obtainium-входы доступны пакетам как `pkgs.obtainium.<вход>`:
+Тот же набор даёт `nix-obtainium.lib.releases self`, один вход — `nix-obtainium.lib.release self "photocraft"`
+(без `src`):
 
 ```nix
-# pkgs.obtainium.photocraft
-# -> { src = <файл>; version = "0.22.0"; fileName = "photocraft-0.22.0-linux-x86_64.deb"; url = "https://..."; }
-
-# photocraft.nix — подключается обычным callPackage ./photocraft.nix { }
-{ stdenv, obtainium, dpkg, ... }:
-stdenv.mkDerivation {
-  pname = "photocraft";
-  inherit (obtainium.photocraft) src version;
-  # ...
-}
+packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage ./photocraft.nix {
+  obtainium = nix-obtainium.lib.releases self;
+};
 ```
 
-Вне NixOS тот же набор даёт `nix-obtainium.lib.releases self`
-(`callPackage ./package.nix { obtainium = nix-obtainium.lib.releases self; }`),
-а для одного входа — `nix-obtainium.lib.release self "photocraft"` (без `src`).
+Рабочий флейк — [`examples/photocraft`](examples/photocraft).
 
-Полный пример — [`examples/photocraft`](examples/photocraft): `.deb` из GitHub releases,
-распаковка, `autoPatchelfHook` и библиотеки, которые приложение грузит через dlopen.
-
-```sh
-cd examples/photocraft
-nix flake update   # с плагином: зафиксирует последний релиз
-nix build
-```
-
-Что учесть при упаковке:
+### Что учесть при упаковке
 
 - Файл в store называется `source` (имя у флейк-входа задать нельзя), поэтому хуки, которые узнают формат
-  по расширению, его пропускают. `.deb` распаковывать явно: `unpackCmd = "dpkg -x $curSrc root";`.
+  по расширению, его пропускают: `.deb` распаковывать явно, как выше.
 - Исполняемый файл приходит без бита `+x`: `install -Dm755 ${src} $out/bin/app`.
 
 ## Коннектор GitHub
