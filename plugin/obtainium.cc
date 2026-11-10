@@ -96,7 +96,7 @@ struct ObtainiumInputScheme : InputScheme
         } catch (nlohmann::json::exception & e) {
             throw Error("'%s': connector '%s' returned invalid output: %s", shown, *it, e.what());
         }
-        notice("%s: resolved %s", shown, version);
+        debug("%s: resolved %s", shown, version);
 
         /* The version rides in the URL fragment: curl never sends it, and the
            lock has no other attr fetchTree would accept (it rejects "name" too). */

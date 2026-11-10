@@ -11,7 +11,7 @@
   connectors ? [ ],
 }:
 let
-  connector-github = writers.writePython3Bin "nix-obtainium-github" { doCheck = false; } (
+  connector-github = writers.writePython3Bin "nix-obtainium-github" { flakeIgnore = [ "E501" ]; } (
     builtins.readFile ./connectors/github.py
   );
   allConnectors = symlinkJoin {
@@ -32,10 +32,23 @@ stdenv.mkDerivation {
     nlohmann_json
   ];
   buildPhase = ''
-    $CXX -std=c++23 -shared -fPIC -O2 -o libnix-obtainium.so release.cc \
+    runHook preBuild
+    $CXX -std=c++23 -shared -fPIC -O2 -o libnix-obtainium.so obtainium.cc \
       -DNIX_OBTAINIUM_CONNECTORS='"${allConnectors}/bin"' \
       $(pkg-config --cflags --libs nix-fetchers nix-store nix-util)
+    runHook postBuild
   '';
-  installPhase = "install -Dm755 libnix-obtainium.so $out/lib/libnix-obtainium.so";
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 libnix-obtainium.so $out/lib/libnix-obtainium.so
+    runHook postInstall
+  '';
   passthru = { inherit connector-github; };
+
+  meta = {
+    description = "Nix plugin: flake inputs that lock the latest release asset and update with nix flake update";
+    homepage = "https://github.com/Spliterash/nix-obtainium";
+    license = lib.licenses.mit;
+    platforms = lib.platforms.unix;
+  };
 }

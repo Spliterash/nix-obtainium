@@ -6,7 +6,7 @@
   outputs =
     { self, nixpkgs, ... }:
     let
-      forAll = nixpkgs.lib.genAttrs [
+      forAllSystems = nixpkgs.lib.genAttrs [
         "x86_64-linux"
         "aarch64-linux"
         "x86_64-darwin"
@@ -53,7 +53,7 @@
           }) (builtins.filter isObtainium (builtins.attrNames root))
         );
 
-      packages = forAll (
+      packages = forAllSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};

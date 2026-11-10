@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """nix-obtainium connector for GitHub releases.
 
 URL: file+https://nix-obtainium.invalid/github/<owner>/<repo>?asset=<glob>[&tag=<glob>][&prerelease=1]
