@@ -1,3 +1,4 @@
+obtainiumLib:
 {
   config,
   lib,
@@ -15,6 +16,12 @@ in
       default = [ ];
       description = "Extra connectors: packages providing bin/nix-obtainium-<name>. GitHub is built in.";
     };
+    flake = lib.mkOption {
+      type = lib.types.nullOr lib.types.raw;
+      default = null;
+      example = lib.literalExpression "self";
+      description = "Your flake. Its nix-obtainium inputs become pkgs.obtainium.<input> = { src, version, fileName, url }.";
+    };
     package = lib.mkOption {
       type = lib.types.package;
       readOnly = true;
@@ -25,7 +32,12 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    nix.settings.plugin-files = [ "${cfg.package}/lib/libnix-obtainium.so" ];
-  };
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      nix.settings.plugin-files = [ "${cfg.package}/lib/libnix-obtainium.so" ];
+    })
+    (lib.mkIf (cfg.flake != null) {
+      nixpkgs.overlays = [ (_: _: { obtainium = obtainiumLib.releases cfg.flake; }) ];
+    })
+  ];
 }

@@ -46,7 +46,10 @@ inputs.nix-obtainium = {
 
 # конфигурация системы
 imports = [ inputs.nix-obtainium.nixosModules.default ];
-nix.obtainium.enable = true;
+nix.obtainium = {
+  enable = true;  # плагин для nix flake update
+  flake = self;   # obtainium-входы флейка -> pkgs.obtainium.<вход>
+};
 ```
 
 Модуль собирает плагин против `config.nix.package` (у плагина нет стабильного ABI, версии обязаны совпадать)
@@ -72,17 +75,24 @@ nix flake update $(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
 ## Использование в пакете
 
 Вход даёт **только файл** (`outPath` — сам `.deb`/бинарник/архив), что с ним делать — решает пакет.
-Версию и имя файла достаёт `lib.release` из lock:
+С `nix.obtainium.flake = self` все obtainium-входы доступны пакетам как `pkgs.obtainium.<вход>`:
 
 ```nix
-# lib.release self "photocraft"
-# -> { version = "0.22.0"; fileName = "photocraft-0.22.0-linux-x86_64.deb"; url = "https://..."; }
+# pkgs.obtainium.photocraft
+# -> { src = <файл>; version = "0.22.0"; fileName = "photocraft-0.22.0-linux-x86_64.deb"; url = "https://..."; }
 
-packages.x86_64-linux.default = pkgs.callPackage ./package.nix {
-  src = inputs.photocraft;
-  inherit (inputs.nix-obtainium.lib.release self "photocraft") version;
-};
+# photocraft.nix — подключается обычным callPackage ./photocraft.nix { }
+{ stdenv, obtainium, dpkg, ... }:
+stdenv.mkDerivation {
+  pname = "photocraft";
+  inherit (obtainium.photocraft) src version;
+  # ...
+}
 ```
+
+Вне NixOS тот же набор даёт `nix-obtainium.lib.releases self`
+(`callPackage ./package.nix { obtainium = nix-obtainium.lib.releases self; }`),
+а для одного входа — `nix-obtainium.lib.release self "photocraft"` (без `src`).
 
 Полный пример — [`examples/photocraft`](examples/photocraft): `.deb` из GitHub releases,
 распаковка, `autoPatchelfHook` и библиотеки, которые приложение грузит через dlopen.

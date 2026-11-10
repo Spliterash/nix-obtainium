@@ -16,12 +16,12 @@
       self,
       nixpkgs,
       nix-obtainium,
-      photocraft,
+      ...
     }:
     {
       packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage ./package.nix {
-        src = photocraft;
-        inherit (nix-obtainium.lib.release self "photocraft") version;
+        # On NixOS the module provides this as pkgs.obtainium (nix.obtainium.flake = self).
+        obtainium = nix-obtainium.lib.releases self;
       };
     };
 }

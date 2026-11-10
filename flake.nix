@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
     let
       forAll = nixpkgs.lib.genAttrs [
         "x86_64-linux"
@@ -14,7 +14,7 @@
       ];
     in
     {
-      nixosModules.default = ./module.nix;
+      nixosModules.default = import ./module.nix self.lib;
 
       # Flake inputs only expose outPath/narHash, so release info is read from the lock:
       # lib.release self "gh" -> { version = "2.103.3"; fileName = "gh_2.103.3_linux_amd64.deb"; url = "..."; }
@@ -32,6 +32,26 @@
             version = builtins.elemAt parts 1;
             fileName = baseNameOf (builtins.elemAt parts 0);
           };
+
+      # All nix-obtainium inputs of a flake: lib.releases self -> { gh = { src; version; fileName; url; }; }
+      lib.releases =
+        flake:
+        let
+          lock = builtins.fromJSON (builtins.readFile "${flake}/flake.lock");
+          root = lock.nodes.root.inputs;
+          isObtainium =
+            name:
+            builtins.isString root.${name}
+            && builtins.match ".*//nix-obtainium\\.invalid/.*" (lock.nodes.${root.${name}}.original.url or "") != null;
+        in
+        builtins.listToAttrs (
+          map (name: {
+            inherit name;
+            value = self.lib.release flake name // {
+              src = flake.inputs.${name};
+            };
+          }) (builtins.filter isObtainium (builtins.attrNames root))
+        );
 
       packages = forAll (
         system:

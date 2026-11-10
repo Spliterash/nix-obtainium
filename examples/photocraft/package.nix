@@ -1,8 +1,7 @@
 {
   lib,
   stdenv,
-  src,
-  version,
+  obtainium,
   dpkg,
   autoPatchelfHook,
   libx11,
@@ -16,7 +15,7 @@
 
 stdenv.mkDerivation {
   pname = "photocraft";
-  inherit src version;
+  inherit (obtainium.photocraft) src version;
 
   nativeBuildInputs = [
     dpkg
