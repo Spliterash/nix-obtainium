@@ -1,7 +1,9 @@
 # nix-obtainium
 
-Плагин Nix в духе [Obtainium](https://github.com/ImranR98/Obtainium): входы флейка, которые указывают на
-**последний релиз** (GitHub releases или свой источник), фиксируются в `flake.lock` и обновляются обычным
+**English** | [Русский](README.ru.md)
+
+A Nix plugin in the spirit of [Obtainium](https://github.com/ImranR98/Obtainium): flake inputs that point to the
+**latest release** (GitHub releases or your own source), are pinned in `flake.lock` and updated with a plain
 `nix flake update`.
 
 ```nix
@@ -11,7 +13,7 @@ inputs.photocraft = {
 };
 ```
 
-После `nix flake update` в lock лежит обычный вход типа `file`:
+After `nix flake update` the lock contains an ordinary `file` input:
 
 ```json
 "locked": {
@@ -21,23 +23,22 @@ inputs.photocraft = {
 }
 ```
 
-## Как это работает
+## How it works
 
-- Плагин перехватывает URL с хостом `nix-obtainium.invalid`, вызывает коннектор (первый сегмент пути),
-  получает реальный URL и версию, скачивает файл и фиксирует его как обычный `type = "file"`.
-- Версия хранится во фрагменте URL (`#0.22.0`): curl его не отправляет, а другого места в lock нет.
-- **Плагин нужен только для обновления.** Сборка по готовому lock работает в любом Nix без плагина,
-  в том числе установка системы с чистого ISO (`nixos-install --flake`).
-- Без плагина `nix flake update` падает с `Could not resolve host: nix-obtainium.invalid` и lock не трогает.
-  Домены `.invalid` не резолвятся никогда (RFC 2606).
+- The plugin intercepts URLs with the host `nix-obtainium.invalid`, calls a connector (the first path segment),
+  gets the real URL and version, downloads the file and locks it as a plain `type = "file"`.
+- The version is stored in the URL fragment (`#0.22.0`): curl never sends it, and the lock has no other place for it.
+- **The plugin is only needed for updating.** Building from an existing lock works with any Nix without the plugin,
+  including installing a system from a fresh ISO (`nixos-install --flake`).
+- Without the plugin `nix flake update` fails with `Could not resolve host: nix-obtainium.invalid` and leaves the
+  lock untouched. `.invalid` domains never resolve (RFC 2606).
 
-Плагин внутри — `InputScheme`, которая регистрируется раньше встроенной `file` (Nix перебирает схемы по
-алфавиту). Это внутреннее устройство Nix, а не публичный API, поэтому после обновления Nix стоит прогнать
-`tests/run.sh`.
+Internally the plugin is an `InputScheme` registered ahead of the builtin `file` scheme (Nix tries schemes in
+alphabetical order). This is Nix internals, not a public API, so run `tests/run.sh` after upgrading Nix.
 
-## Пример: photocraft в NixOS
+## Example: photocraft on NixOS
 
-Ставим [photocraft](https://github.com/storytold/photocraft) из `.deb` последнего релиза на GitHub.
+Installing [photocraft](https://github.com/storytold/photocraft) from the `.deb` of its latest GitHub release.
 
 `flake.nix`:
 
@@ -50,7 +51,7 @@ inputs.photocraft = {
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Последний релиз; версия фиксируется в flake.lock, обновляется через nix flake update
+    # Latest release; the version is pinned in flake.lock and updated by nix flake update
     photocraft = {
       url = "file+https://nix-obtainium.invalid/github/storytold/photocraft?asset=photocraft-*-linux-x86_64.deb";
       flake = false;
@@ -69,8 +70,8 @@ inputs.photocraft = {
             { pkgs, ... }:
             {
               nix.obtainium = {
-                enable = true; # плагин для nix flake update
-                flake = self;  # obtainium-входы этого флейка -> pkgs.obtainium.<вход>
+                enable = true; # plugin for nix flake update
+                flake = self;  # obtainium inputs of this flake -> pkgs.obtainium.<input>
               };
               environment.systemPackages = [ (pkgs.callPackage ./photocraft.nix { }) ];
             }
@@ -81,7 +82,7 @@ inputs.photocraft = {
 }
 ```
 
-`photocraft.nix` — обычный пакет, только `src` и `version` берёт из `obtainium`:
+`photocraft.nix` is a regular package that takes only `src` and `version` from `obtainium`:
 
 ```nix
 {
@@ -108,7 +109,7 @@ stdenv.mkDerivation {
   ];
   buildInputs = [ stdenv.cc.cc.lib ];
 
-  # winit/wgpu грузят их через dlopen, autoPatchelf их в NEEDED не видит
+  # Loaded with dlopen by winit/wgpu, so autoPatchelf can't see them in NEEDED
   runtimeDependencies = [
     libx11
     libxcb
@@ -119,7 +120,7 @@ stdenv.mkDerivation {
     wayland
   ];
 
-  # Вход лежит в store как "source" без расширения .deb, хук dpkg его не узнаёт
+  # The input is stored as "source" without the .deb extension, so dpkg's hook skips it
   unpackCmd = "dpkg -x $curSrc root";
   sourceRoot = "root";
 
@@ -132,37 +133,37 @@ stdenv.mkDerivation {
 }
 ```
 
-`pkgs.obtainium.photocraft` выглядит так:
+`pkgs.obtainium.photocraft` looks like this:
 
 ```nix
 {
-  src = <файл .deb в store>;
+  src = <the .deb file in the store>;
   version = "0.22.0";
   fileName = "photocraft-0.22.0-linux-x86_64.deb";
   url = "https://github.com/storytold/photocraft/releases/download/v0.22.0/photocraft-0.22.0-linux-x86_64.deb";
 }
 ```
 
-Первый раз (плагина в системе ещё нет) — lock через Nix из этого флейка, дальше как обычно:
+The first time (the plugin is not in the system yet), lock with the Nix from this flake, then as usual:
 
 ```sh
 nix shell github:Spliterash/nix-obtainium#nix -c nix flake lock
 sudo nixos-rebuild switch --flake .#myhost
 
-# потом, уже с плагином в системе:
+# later, with the plugin in the system:
 nix flake update && sudo nixos-rebuild switch --flake .#myhost
 ```
 
-Новое приложение — это вход во `flake.nix` и пакет с `inherit (obtainium.<вход>) src version;`.
+A new app is just an input in `flake.nix` and a package with `inherit (obtainium.<input>) src version;`.
 
-### Что делает модуль
+### What the module does
 
-- Собирает плагин против `config.nix.package` (у плагина нет стабильного ABI, версии обязаны совпадать)
-  и прописывает его в `nix.settings.plugin-files`. Поддерживается только CppNix из nixpkgs: у Lix и
-  Determinate Nix свои внутренности.
-- С `flake = self` добавляет overlay с `pkgs.obtainium`: все входы флейка с `nix-obtainium.invalid`.
+- Builds the plugin against `config.nix.package` (the plugin has no stable ABI, versions must match) and adds it
+  to `nix.settings.plugin-files`. Only CppNix from nixpkgs is supported: Lix and Determinate Nix have different
+  internals.
+- With `flake = self`, adds an overlay with `pkgs.obtainium`: every input of the flake using `nix-obtainium.invalid`.
 
-Без плагина обновить всё, кроме входов nix-obtainium, можно обычным Nix:
+Without the plugin, everything except the nix-obtainium inputs can be updated with plain Nix:
 
 ```sh
 nix flake update $(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
@@ -170,10 +171,10 @@ nix flake update $(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
   | select($n[.value].original.url // "" | contains("nix-obtainium.invalid") | not) | .key' flake.lock)
 ```
 
-### Без NixOS
+### Without NixOS
 
-Тот же набор даёт `nix-obtainium.lib.releases self`, один вход — `nix-obtainium.lib.release self "photocraft"`
-(без `src`):
+The same set is available as `nix-obtainium.lib.releases self`, a single input as
+`nix-obtainium.lib.release self "photocraft"` (without `src`):
 
 ```nix
 packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage ./photocraft.nix {
@@ -181,55 +182,59 @@ packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage 
 };
 ```
 
-Рабочий флейк — [`examples/photocraft`](examples/photocraft).
+Working flake: [`examples/photocraft`](examples/photocraft).
 
-### Что учесть при упаковке
+### Packaging notes
 
-- Файл в store называется `source` (имя у флейк-входа задать нельзя), поэтому хуки, которые узнают формат
-  по расширению, его пропускают: `.deb` распаковывать явно, как выше.
-- Исполняемый файл приходит без бита `+x`: `install -Dm755 ${src} $out/bin/app`.
+- The file in the store is named `source` (a flake input can't be given a name), so hooks that detect the format
+  by extension skip it: unpack `.deb` explicitly, as above.
+- An executable comes without the `+x` bit: `install -Dm755 ${src} $out/bin/app`.
 
-## Коннектор GitHub
+## GitHub connector
 
 ```
 file+https://nix-obtainium.invalid/github/<owner>/<repo>?asset=<glob>[&tag=<glob>][&prerelease=1]
 ```
 
-| Параметр     | Назначение                                                        |
-|--------------|-------------------------------------------------------------------|
-| `asset`      | glob имени ассета, обязателен: `app_*_amd64.deb`                  |
-| `tag`        | glob тега, по умолчанию `*`; `tag=v1.3.*` держит ветку версий     |
-| `prerelease` | `1` — учитывать пререлизы                                         |
+| Parameter    | Meaning                                                          |
+|--------------|------------------------------------------------------------------|
+| `asset`      | asset name glob, required: `app_*_amd64.deb`                     |
+| `tag`        | tag glob, `*` by default; `tag=v1.3.*` sticks to a version line  |
+| `prerelease` | `1` — consider prereleases                                       |
 
-Берётся самый новый релиз, у которого совпали тег и ассет. Версия — тег без ведущего `v`.
+The newest release whose tag and an asset match is taken. The version is the tag without a leading `v`.
 
-Скачивание идёт без токена. Токен нужен только против лимита GitHub API (60 запросов в час без него):
-берётся из `access-tokens` для `github.com` в настройках Nix или из `GITHUB_TOKEN`.
+Downloads need no token. A token only helps against the GitHub API rate limit (60 requests per hour without one):
+it is taken from `access-tokens` for `github.com` in the Nix settings or from `GITHUB_TOKEN`.
 
-## Свой коннектор
+## Custom connector
 
-Коннектор — исполняемый файл `bin/nix-obtainium-<имя>`, язык любой. Плагин видит только коннекторы,
-вшитые в него при сборке, поэтому они зафиксированы lock-файлом системы, как всё остальное:
+A connector is an executable `bin/nix-obtainium-<name>` in any language. The plugin only sees connectors baked
+into it at build time, so they are pinned by the system's lock file like everything else:
 
 ```nix
 nix.obtainium.connectors = [ (pkgs.writers.writePython3Bin "nix-obtainium-mysrc" { } ./mysrc.py) ];
 ```
 
-URL `file+https://nix-obtainium.invalid/mysrc/a/b?x=1` вызывает `nix-obtainium-mysrc`. Протокол — JSON:
+The URL `file+https://nix-obtainium.invalid/mysrc/a/b?x=1` calls `nix-obtainium-mysrc`. The protocol is JSON:
 
 ```
 stdin:  {"path": ["a", "b"], "query": {"x": "1"}, "accessTokens": {"github.com": "..."}}
 stdout: {"version": "1.2.3", "url": "https://example.com/files/app-1.2.3.tar.gz"}
 ```
 
-Ненулевой код выхода — ошибка, stderr показывается пользователю. Скачивание, хеш и запись в lock делает
-плагин. Возвращаемый URL должен быть неизменяемым: по нему будут собирать по lock.
+A non-zero exit code is an error, stderr is shown to the user. Downloading, hashing and writing the lock are done
+by the plugin. The returned URL must be immutable: builds from the lock will fetch it.
 
-## Тест
+## Test
 
 ```sh
 nix shell nixpkgs#jq -c tests/run.sh
 ```
 
-Нужна сеть: тест ходит в реальный GitHub (`cli/cli`) и проверяет фиксацию, `lib.release`, сборку без
-плагина на пустом store, фильтр `tag`, поведение без плагина и неизвестный коннектор.
+Requires network: the test uses the real GitHub (`cli/cli`) and checks locking, `lib.release`, building without
+the plugin on an empty store, the `tag` filter, behaviour without the plugin and an unknown connector.
+
+## License
+
+[MIT](LICENSE)
