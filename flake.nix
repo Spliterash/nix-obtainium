@@ -64,14 +64,7 @@
           inherit (plugin) connector-github;
 
           # Bootstrap: `nix shell <this flake>#nix -c nix flake update` on a system without the plugin.
-          nix = pkgs.symlinkJoin {
-            name = "nix-with-obtainium";
-            paths = [ pkgs.nix ];
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-            postBuild = ''
-              wrapProgram $out/bin/nix --add-flags "--option plugin-files ${plugin}/lib/libnix-obtainium.so"
-            '';
-          };
+          inherit (plugin) nix;
         }
       );
     };

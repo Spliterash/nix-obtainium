@@ -6,6 +6,7 @@
   pkg-config,
   nlohmann_json,
   symlinkJoin,
+  makeWrapper,
   writers,
   nix,
   connectors ? [ ],
@@ -20,7 +21,7 @@ let
   };
 in
 assert lib.assertMsg (nix ? libs) "nix-obtainium: '${nix.name}' has no .libs, only nixpkgs' CppNix is supported";
-stdenv.mkDerivation {
+stdenv.mkDerivation (finalAttrs: {
   pname = "nix-obtainium";
   version = "0.1.0";
   src = ./plugin;
@@ -43,7 +44,18 @@ stdenv.mkDerivation {
     install -Dm755 libnix-obtainium.so $out/lib/libnix-obtainium.so
     runHook postInstall
   '';
-  passthru = { inherit connector-github; };
+  passthru = {
+    inherit connector-github;
+    # Plugin is passed only to this nix, not via nix.conf: any other nix (e.g. from a devShell) would load it and crash.
+    nix = symlinkJoin {
+      name = "nix-with-obtainium";
+      paths = [ nix ];
+      nativeBuildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/nix --add-flags "--option plugin-files ${finalAttrs.finalPackage}/lib/libnix-obtainium.so"
+      '';
+    };
+  };
 
   meta = {
     description = "Nix plugin: flake inputs that lock the latest release asset and update with nix flake update";
@@ -51,4 +63,4 @@ stdenv.mkDerivation {
     license = lib.licenses.mit;
     platforms = lib.platforms.unix;
   };
-}
+})

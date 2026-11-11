@@ -162,8 +162,9 @@ nix flake update && sudo nixos-rebuild switch --flake .#myhost
 ### Что делает модуль
 
 - Собирает плагин против `config.nix.package` (у плагина нет стабильного ABI, версии обязаны совпадать)
-  и прописывает его в `nix.settings.plugin-files`. Поддерживается только CppNix из nixpkgs: у Lix и
-  Determinate Nix свои внутренности.
+  и ставит в систему обёртку над `nix`, которая его подгружает. В `nix.settings.plugin-files` плагин намеренно
+  не прописывается: `nix.conf` читает любой Nix, и Nix из другого nixpkgs (например, в devShell) не сможет его
+  загрузить. Поддерживается только CppNix из nixpkgs: у Lix и Determinate Nix свои внутренности.
 - С `flake = self` добавляет overlay с `pkgs.obtainium`: все входы флейка с `nix-obtainium.invalid`.
 
 Без плагина обновить всё, кроме входов nix-obtainium, можно обычным Nix:

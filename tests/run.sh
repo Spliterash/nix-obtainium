@@ -42,7 +42,7 @@ mkflake 'github/cli/cli?asset=gh_*_linux_amd64.deb&tag=v2.100.*'
 
 echo "5. without plugin update fails and keeps the lock"
 cp flake.lock lock.bak
-! nix flake update 2>err || fail "update without plugin succeeded"
+! nix --option plugin-files '' flake update 2>err || fail "update without plugin succeeded"
 grep -q 'nix-obtainium.invalid' err || fail "unexpected error: $(cat err)"
 cmp -s flake.lock lock.bak || fail "lock changed"
 

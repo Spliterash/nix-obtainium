@@ -34,7 +34,7 @@ in
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
-      nix.settings.plugin-files = [ "${cfg.package}/lib/libnix-obtainium.so" ];
+      environment.systemPackages = [ (lib.hiPrio cfg.package.nix) ];
     })
     (lib.mkIf (cfg.flake != null) {
       nixpkgs.overlays = [ (_: _: { obtainium = obtainiumLib.releases cfg.flake; }) ];

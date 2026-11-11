@@ -160,9 +160,10 @@ A new app is just an input in `flake.nix` and a package with `inherit (obtainium
 
 ### What the module does
 
-- Builds the plugin against `config.nix.package` (the plugin has no stable ABI, versions must match) and adds it
-  to `nix.settings.plugin-files`. Only CppNix from nixpkgs is supported: Lix and Determinate Nix have different
-  internals.
+- Builds the plugin against `config.nix.package` (the plugin has no stable ABI, versions must match) and puts into
+  the system a `nix` wrapper that loads it. The plugin is deliberately not added to `nix.settings.plugin-files`:
+  every Nix reads `nix.conf`, and a Nix from another nixpkgs (e.g. in a devShell) would fail to load it. Only CppNix
+  from nixpkgs is supported: Lix and Determinate Nix have different internals.
 - With `flake = self`, adds an overlay with `pkgs.obtainium`: every input of the flake using `nix-obtainium.invalid`.
 
 Without the plugin, everything except the nix-obtainium inputs can be updated with plain Nix:
