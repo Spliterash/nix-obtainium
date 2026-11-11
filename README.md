@@ -2,6 +2,8 @@
 
 **English** | [Русский](README.ru.md)
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 A Nix plugin in the spirit of [Obtainium](https://github.com/ImranR98/Obtainium): flake inputs that point to the
 **latest release** (GitHub releases or your own source), are pinned in `flake.lock` and updated with a plain
 `nix flake update`.

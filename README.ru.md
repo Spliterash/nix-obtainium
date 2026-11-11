@@ -2,6 +2,8 @@
 
 [English](README.md) | **Русский**
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 Плагин Nix в духе [Obtainium](https://github.com/ImranR98/Obtainium): входы флейка, которые указывают на
 **последний релиз** (GitHub releases или свой источник), фиксируются в `flake.lock` и обновляются обычным
 `nix flake update`.
