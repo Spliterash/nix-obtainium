@@ -35,6 +35,7 @@ stdenv.mkDerivation (finalAttrs: {
   buildPhase = ''
     runHook preBuild
     $CXX -std=c++23 -shared -fPIC -O2 -o libnix-obtainium.so obtainium.cc \
+      -DNIX_MINOR=${lib.versions.minor nix.version} \
       -DNIX_OBTAINIUM_CONNECTORS='"${allConnectors}/bin"' \
       $(pkg-config --cflags --libs nix-fetchers nix-store nix-util)
     runHook postBuild

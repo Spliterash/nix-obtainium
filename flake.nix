@@ -67,5 +67,18 @@
           inherit (plugin) nix;
         }
       );
+
+      # Nix has no stable plugin API: build the plugin against every nixVersions entry.
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          lib = nixpkgs.lib;
+          nixes = lib.filterAttrs (_: v: (builtins.tryEval (lib.isDerivation v && v ? libs)).value) pkgs.nixVersions;
+        in
+        lib.mapAttrs' (
+          name: nix: lib.nameValuePair "plugin-${name}" (self.packages.${system}.default.override { inherit nix; })
+        ) nixes
+      );
     };
 }
